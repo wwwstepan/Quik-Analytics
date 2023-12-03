@@ -1,0 +1,236 @@
+PORTFOLIO_EX MY_DEALS_BR;
+DESCRIPTION MY_DEALS_BR;
+CLIENTS_LIST ALL_CLIENTS;
+FIRMS_LIST FIRMID;
+
+USE_CASE_SENSITIVE_CONSTANTS
+
+PROGRAM
+
+
+
+FUNC MakeLine(a,b,c,d,e)
+  mapRowInfo = CREATE_MAP()
+  mapRowInfo = SET_VALUE( mapRowInfo, "A", a )
+  mapRowInfo = SET_VALUE( mapRowInfo, "B", b )
+  mapRowInfo = SET_VALUE( mapRowInfo, "C", c )
+  mapRowInfo = SET_VALUE( mapRowInfo, "D", d )
+  mapRowInfo = SET_VALUE( mapRowInfo, "E", e )
+  RESULT=mapRowInfo
+END FUNC
+
+FUNC prc3(p)
+  'RESULT=substr(""&p,len(""&p)-3,3)
+  RESULT=p
+END FUNC
+
+NEW_GLOBAL("FirstRun", 1 )
+NEW_GLOBAL("nRowMyTable", 1)
+NEW_GLOBAL("las_n_trades", 0 )
+
+NEW_GLOBAL("myOborot", 0 )
+NEW_GLOBAL("pProf", 0 )
+NEW_GLOBAL("sProf", 0 )
+NEW_GLOBAL("sComis", 0 )
+NEW_GLOBAL("cur_pos", 0 )
+NEW_GLOBAL("cur_pos_p", 0 )
+NEW_GLOBAL("cur_pos_q", 0 )
+NEW_GLOBAL("last_prf", 0 )
+NEW_GLOBAL("last_p_prf", 0 )
+NEW_GLOBAL("file_log", "" )
+
+IF FirstRun==1
+  map_cur_dt=GET_DATETIME()
+  cur_dt=0+get_value(map_cur_dt,"YEAR")*10000 + get_value(map_cur_dt,"MONTH")*100 + get_value(map_cur_dt,"DAY")
+  cur_dt="" & cur_dt
+  file_log="C:\_\fut\" & cur_dt & "_deals_br.csv"
+  CLEAR_FILE(file_log)
+  WRITELN(file_log,"time;qty;price;prof_p;prof;total")
+
+  NEW_GLOBAL("max_pos", 0 )
+END IF
+
+n_trades=get_number_of("TRADES")
+
+IF n_trades>las_n_trades
+FOR n1 FROM las_n_trades+1 TO n_trades
+  mTrade=get_item("TRADES", n1)
+
+  tr_dt="" & get_value(mTrade,"DATE")
+  IF tr_dt=cur_dt
+  strStock=get_value(mTrade, "SECCODE")
+  IF SubStr(strStock,0,2)=="BR"                ' BRENT fut only
+
+    IF cur_pos == 0
+      open_pos=1
+      cur_pos_p=0
+      cur_pos_q=0
+    ELSE
+      open_pos=0
+    END IF
+    
+    tr_tm="" & get_value(mTrade,"TIME")
+    _str_time=substr(tr_tm,0,2) & ":" & substr(tr_tm,2,2) & ":" & substr(tr_tm,4,2)
+
+    qty1=0+get_value(mTrade,"QUANTITY")
+    pr1=0+get_value(mTrade,"PRICE")
+    val1=0+get_value(mTrade,"VALUE")
+
+    myOborot=myOborot+val1
+
+	sComis=sComis+qty1*0.545
+
+
+    IF get_value(mTrade,"OPERATION")=="SELL"
+      _op_sign="-"
+
+      IF 0+max_pos<0+cur_pos
+        max_pos=0+cur_pos
+      END IF
+
+      sProf=sProf+val1
+      pProf=pProf+qty1*pr1
+      cur_pos=cur_pos-qty1
+    ELSE
+      _op_sign="+"
+
+      IF 0+max_pos>0+cur_pos
+        max_pos=0+cur_pos
+      END IF
+
+      sProf=sProf-val1
+      pProf=pProf-qty1*pr1
+      cur_pos=cur_pos+qty1
+    END IF
+
+    'WRITELN(file_log,"max_pos="&max_pos&"  cur_pos="&cur_pos)
+
+    IF ((cur_pos<0) AND (_op_sign=="-")) OR ((cur_pos>0) AND (_op_sign=="+"))
+      cur_pos_p=cur_pos_p+pr1*qty1
+      cur_pos_q=cur_pos_q+qty1
+      avg_pr=prc3(APPLY_SCALE(cur_pos_p/cur_pos_q,2))
+    END IF
+
+    color_bkg="RGB(240, 240, 240)"
+    color_fnt="RGB(60, 60, 60)"
+
+    pr1=""&pr1
+    _str_pr =  _op_sign & qty1 & " " & substr(pr1,0,3) & " " & substr(pr1,3,len(pr1)-3)
+
+    _str_op=""
+    _p=""
+    _pp=""
+    _pp1=""
+    _str_prf=""
+
+    IF cur_pos == 0
+      nn=210
+      _p=sProf-sComis-last_prf
+      _pp=0+APPLY_SCALE((pProf-last_p_prf),0)
+      IF _p>0
+        _p="+"& APPLY_SCALE(_p,0)
+        color_bkg="RGB("&nn&", 255, "&nn&")"
+      ELSE
+        _p=""& APPLY_SCALE(_p,0)
+        color_bkg="RGB(255, "&nn&", "&nn&")"
+      END IF
+      IF _pp>0
+        _pp="+" & _pp
+      END IF
+
+      IF max_pos>=0
+          _str_pr = "+" & max_pos
+      ELSE
+          _str_pr = "" & max_pos
+      END IF
+
+      IF max_pos<>0
+        IF max_pos>0
+          m_pos=max_pos
+        ELSE
+          m_pos=-max_pos
+        END IF
+        _pp1=APPLY_SCALE(100.0*_pp/m_pos,0)
+      ELSE
+        _pp1="?"
+      END IF
+
+      max_pos=0
+
+      last_prf=sProf-sComis
+      last_p_prf=pProf
+      _str_op="" & _pp1 & ". = " & _p
+      _str_prf="" & APPLY_SCALE(last_prf,0) '& " (-" & sComis & ")"
+    ELSE
+      IF cur_pos>=0
+          _str_pr = "+" & cur_pos
+      ELSE
+          _str_pr = "" & cur_pos
+      END IF
+    END IF
+
+    _str_sz=avg_pr
+
+    IF open_pos==1
+      _no_add=0
+    ELSE
+      _no_add=1
+    END IF
+
+    mapRowInfo1 = MakeLine(_str_time, _str_pr, _str_sz, _str_op, _str_prf)
+
+    WRITELN(file_log,_str_time & ";" & _op_sign & qty1 & ";" & pr1 & ";" & _pp & ";" & _p & ";" & _str_prf)
+    IF cur_pos == 0
+      WRITELN(file_log,"        ;" & _str_pr & ";" & " ~" & _str_sz & ";[" & _pp1 & "];")
+    END IF
+
+    IF _no_add==0
+       ADD_ITEM(nRowMyTable, mapRowInfo1)
+       SET_ROW_COLOR_EX(nRowMyTable, color_bkg, color_bkg, color_fnt, color_fnt)
+       nRowMyTable=nRowMyTable+1
+    ELSE
+       MODIFY_ITEM(nRowMyTable-1, mapRowInfo1)
+       SET_ROW_COLOR_EX(nRowMyTable-1, color_bkg, color_bkg, color_fnt, color_fnt)
+    END IF
+
+  END IF
+  END IF
+END FOR
+las_n_trades=n_trades
+END IF
+
+FirstRun=0
+
+END_PROGRAM
+
+PARAMETER A;
+PARAMETER_TITLE time;
+PARAMETER_DESCRIPTION Q;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER B;
+PARAMETER_TITLE size;
+PARAMETER_DESCRIPTION Q;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER C;
+PARAMETER_TITLE price;
+PARAMETER_DESCRIPTION Q;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER D;
+PARAMETER_TITLE oper;
+PARAMETER_DESCRIPTION Q;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER E;
+PARAMETER_TITLE total;
+PARAMETER_DESCRIPTION Q;
+PARAMETER_TYPE STRING(20);
+END
+
+END_PORTFOLIO_EX

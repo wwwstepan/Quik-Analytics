@@ -1,0 +1,269 @@
+PORTFOLIO_EX MY_TS_BR;
+DESCRIPTION BR T&S;
+CLIENTS_LIST ALL_CLIENTS;
+FIRMS_LIST FIRMID;
+
+PROGRAM
+
+
+
+
+id_RI_FUT="BRU0"
+
+
+FUNC get_vol_color(n)
+   nn=FLOOR(230-n)
+   IF nn<70
+      nn=70
+   END IF
+   RESULT=nn
+END FUNC
+
+FUNC ShowBig(n_last,last_op,strBigDeals)
+  IF n_last>199
+    IF (last_op == "BUY")
+      strBigDeals=strBigDeals & " ^ "
+    ELSE
+      strBigDeals=strBigDeals & " v "
+    END IF
+  ELSE
+    IF n_last>99
+      IF (last_op == "BUY")
+        strBigDeals=strBigDeals & " + "
+      ELSE
+        strBigDeals=strBigDeals & " - "
+      END IF
+    END IF
+  END IF
+  RESULT=strBigDeals
+END FUNC
+
+FUNC MakeLine(a0,a,b,c)
+  mapRowInfo = CREATE_MAP()
+  mapRowInfo = SET_VALUE( mapRowInfo, "A0", a0 )
+  mapRowInfo = SET_VALUE( mapRowInfo, "A", a )
+  mapRowInfo = SET_VALUE( mapRowInfo, "B", b )
+  mapRowInfo = SET_VALUE( mapRowInfo, "C", c )
+  RESULT=mapRowInfo
+END FUNC
+
+NEW_GLOBAL("FirstRun",1)
+NEW_GLOBAL("nRowMyTable",1)
+
+NEW_GLOBAL("LastOpP",0)
+NEW_GLOBAL("nTrd",0)
+NEW_GLOBAL("prev_av_pr",0)
+
+IF IS_CONNECTED()==1
+
+nTrades=0
+TotalVol=0
+TotalQty=0
+
+nBuy=0
+nSell=0
+
+n_all_tr=get_number_of("ALL_TRADES")
+
+CurOpP=0+GET_PARAM("SPBFUT",id_RI_FUT,"numcontracts")
+
+IF FirstRun==1
+  nTrd=n_all_tr
+  LastOpP=CurOpP
+END IF
+
+PlusOpP=0+CurOpP-LastOpP
+
+sPlusOpP=""
+IF PlusOpP>0.001
+   sPlusOpP="+" & PlusOpP
+ELSE
+   IF PlusOpP<-0.001
+      sPlusOpP="" & PlusOpP
+   END IF
+END IF
+
+LastTrTime=""
+strBigDeals="  "
+strBigDealsBuy=" "
+strBigDealsSell=" "
+
+IF n_all_tr>nTrd
+
+  last_tm=""
+  last_op=""
+  n_last=0
+    
+  FOR nnn FROM nTrd TO n_all_tr
+
+    mTrade=get_item("ALL_TRADES", nnn)
+    
+    strStock=get_value(mTrade, "SECCODE")
+
+    IF strStock==id_RI_FUT
+      pr1=0+get_value(mTrade, "PRICE")
+      qty1=0+get_value(mTrade,"QUANTITY")
+      op1=""&get_value(mTrade, "OPERATION")
+      tm1=""&get_value(mTrade,"TIME")
+    
+      nTrades=nTrades+1
+      TotalVol=TotalVol+pr1*qty1
+      TotalQty=TotalQty+qty1
+    
+      IF (op1 == "BUY")
+        nBuy=nBuy+qty1
+      ELSE
+        nSell=nSell+qty1
+      END IF
+
+      IF len(strBigDeals)<100
+        IF (last_tm<>tm1) OR (last_op<>op1)
+          strBigDeals=ShowBig(n_last,last_op,strBigDeals)
+
+          last_tm=tm1
+          last_op=op1
+          n_last=qty1
+        ELSE
+          n_last=n_last+qty1
+        END IF
+      END IF
+    END IF
+
+  END FOR
+
+  strBigDeals=ShowBig(n_last,last_op,strBigDeals)
+
+  mTrade=get_item("ALL_TRADES", n_all_tr)
+  LastTrTime=""&get_value(mTrade,"TIME")
+  LastTrTime=substr(LastTrTime,0,2) & ":" & substr(LastTrTime,2,2) & ":" & substr(LastTrTime,4,2)
+
+END IF
+
+  nTrd=n_all_tr
+
+  prcBuy=0
+  prcSell=0
+  IF TotalQty>0
+    IF nBuy>0
+      prcBuy=100*nBuy/TotalQty
+    END IF
+    IF nSell>0
+      prcSell=100*nSell/TotalQty
+    END IF
+  END IF
+  
+  av_pr=""
+  IF TotalQty>0
+    av_pr=APPLY_SCALE(TotalVol/TotalQty,2)
+    'av_pr=substr(av_pr,len(av_pr)-3,3)
+  END IF
+  
+  prcBuyOrSell=""
+  color_bkg="RGB(255, 255, 255)"
+  color_fnt="RGB(50, 50, 50)"
+
+  id_clr=""
+  IF prcBuy>74
+      IF nBuy>150
+         nn=get_vol_color(nBuy*0.02)
+         color_bkg="RGB("&nn&", 255, "&nn&")"
+         id_clr="g"
+      END IF
+  ELSE
+      IF prcSell>74
+         IF nSell>150
+            nn=get_vol_color(nSell*0.02)
+            color_bkg="RGB(255, "&nn&", "&nn&")"
+            id_clr="r"
+         END IF
+      ELSE
+         IF TotalQty>250
+            nn=get_vol_color(TotalQty*0.01)
+            color_bkg="RGB("&nn&", "&nn&", 255)"
+            id_clr="b"
+         END IF
+      END IF
+  END IF
+
+  IF nBuy==0
+    nBuy=""
+  END IF
+  IF nSell==0
+    nSell=""
+  END IF
+
+  prev_av_pr=0+prev_av_pr
+  s_pr=""
+  IF 0+av_pr>1
+    IF prev_av_pr>1
+      s_prn=av_pr-prev_av_pr
+      IF s_prn>0.03 OR s_prn<-0.03
+        IF s_prn>0
+          s_pr="+" & s_prn
+        ELSE
+          s_pr="" & s_prn
+        END IF
+      END IF
+    END IF
+  END IF
+  prev_av_pr=av_pr
+
+  sTotalQty=""
+  av_pr3=""
+  IF TotalQty>0
+    IF TotalQty>500
+      sTotalQty=APPLY_SCALE(TotalQty/1000,1) & "k"
+    ELSE
+      sTotalQty=TotalQty
+    END IF
+    av_pr3=av_pr
+  END IF
+
+  map_cur_dt=GET_DATETIME()
+  _str_time="" & get_value(map_cur_dt,"MIN") & ":" & get_value(map_cur_dt,"SEC")
+  mapRowInfo1 = MakeLine(_str_time,"" & sTotalQty & strBigDeals,av_pr3,s_pr)
+
+  ADD_ITEM(nRowMyTable, mapRowInfo1)
+
+  SET_ROW_COLOR_EX(nRowMyTable, color_bkg, color_bkg, color_fnt, color_fnt)
+
+  IF nRowMyTable>30
+    DELETE_ITEM(1)
+  ELSE
+    nRowMyTable=nRowMyTable+1
+  END IF
+
+LastOpP=CurOpP
+
+FirstRun=0
+
+END IF
+
+
+END_PROGRAM
+
+PARAMETER A0;
+PARAMETER_TITLE time;
+PARAMETER_DESCRIPTION A0;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER A;
+PARAMETER_TITLE vol;
+PARAMETER_DESCRIPTION A;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER B;
+PARAMETER_TITLE price;
+PARAMETER_DESCRIPTION B;
+PARAMETER_TYPE STRING(20);
+END
+
+PARAMETER C;
+PARAMETER_TITLE chng;
+PARAMETER_DESCRIPTION C;
+PARAMETER_TYPE STRING(20);
+END
+
+END_PORTFOLIO_EX

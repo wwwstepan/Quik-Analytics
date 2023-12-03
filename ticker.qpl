@@ -1,0 +1,104 @@
+PORTFOLIO_EX MY_TKR_LOG;
+DESCRIPTION MY TKR LOG;
+CLIENTS_LIST ALL_CLIENTS;
+FIRMS_LIST FIRMID;
+
+PROGRAM
+
+
+
+id_year="0"
+id_RI_FUT="RIU" & id_year
+id_BR_FUT="BRU" & id_year
+id_MX_FUT="MXU" & id_year
+
+
+NEW_GLOBAL("FirstRun",1)
+NEW_GLOBAL("nRowMyTable",1)
+
+NEW_GLOBAL("LastOpP",0)
+NEW_GLOBAL("nTrd",0)
+NEW_GLOBAL("prev_av_pr",0)
+
+NEW_GLOBAL("file_log_RI", "" )
+NEW_GLOBAL("file_log_BR", "" )
+NEW_GLOBAL("file_log_MX", "" )
+
+IF FirstRun==1
+  map_cur_dt=GET_DATETIME()
+  cur_dt=0+get_value(map_cur_dt,"YEAR")*10000 + get_value(map_cur_dt,"MONTH")*100 + get_value(map_cur_dt,"DAY")
+  cur_dt="" & cur_dt
+
+  file_log_RI="C:\_\fut\RI_" & cur_dt & "_ticker.csv"
+  file_log_BR="C:\_\fut\BR_" & cur_dt & "_ticker.csv"
+  file_log_MX="C:\_\fut\MX_" & cur_dt & "_ticker.csv"
+
+  CLEAR_FILE(file_log_RI)
+  WRITELN(file_log_RI,"time;price;val;op")
+  CLEAR_FILE(file_log_BR)
+  WRITELN(file_log_BR,"time;price;val;op")
+  CLEAR_FILE(file_log_MX)
+  WRITELN(file_log_MX,"time;price;val;op")
+END IF
+
+IF IS_CONNECTED()==1
+
+n_all_tr=get_number_of("ALL_TRADES")
+
+IF FirstRun==1
+  nTrd=1
+END IF
+
+IF n_all_tr>nTrd
+
+  FOR nnn FROM nTrd TO n_all_tr
+
+    mTrade=get_item("ALL_TRADES", nnn)
+    
+    strStock=get_value(mTrade, "SECCODE")
+
+    IF strStock==id_RI_FUT OR strStock==id_BR_FUT OR strStock==id_MX_FUT
+      pr1=0+get_value(mTrade, "PRICE")
+      qty1=0+get_value(mTrade,"QUANTITY")
+      op1=""&get_value(mTrade, "OPERATION")
+      tm1=""&get_value(mTrade,"TIME")
+    
+	  '_str_time="" & get_value(tm1,"HOUR")*10000 + get_value(tm1,"MIN")*100 + get_value(tm1,"SEC")
+      IF (op1 == "BUY")
+        s_op="B"
+      ELSE
+        s_op="S"
+      END IF
+
+      IF strStock==id_RI_FUT
+	    WRITELN(file_log_RI,tm1 & ";" & pr1 & ";" & qty1 & ";" & s_op)
+      END IF
+      IF strStock==id_BR_FUT
+	    WRITELN(file_log_BR,tm1 & ";" & pr1 & ";" & qty1 & ";" & s_op)
+      END IF
+      IF strStock==id_MX_FUT
+	    WRITELN(file_log_MX,tm1 & ";" & pr1 & ";" & qty1 & ";" & s_op)
+      END IF
+    END IF
+
+  END FOR
+
+END IF
+
+nTrd=n_all_tr
+
+
+FirstRun=0
+
+END IF
+
+
+END_PROGRAM
+
+PARAMETER A;
+PARAMETER_TITLE log;
+PARAMETER_DESCRIPTION A;
+PARAMETER_TYPE STRING(20);
+END
+
+END_PORTFOLIO_EX
